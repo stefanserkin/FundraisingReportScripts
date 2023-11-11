@@ -292,7 +292,7 @@ Integer rowCount = 0;
 for (Account curAcc : mapAccounts.values()) {
     csvString += curAcc.Id + ',';
 
-    csvString += curAcc.Name + ',';
+    csvString += '"' + curAcc.Name + '",';
 
     if (!String.isBlank(curAcc.npo02__Formal_Greeting__c)) {
         csvString += '"' + curAcc.npo02__Formal_Greeting__c.replaceAll('"','""') + '",';
