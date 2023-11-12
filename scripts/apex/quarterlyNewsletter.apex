@@ -62,6 +62,9 @@ List<String> csvContactHeaders = new List<String>{
     'Phone'
 };
 
+Id hhRecTypId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName().get('HH_Account').getRecordTypeId();
+System.debug('::::::: hhRecTypId --> ' + hhRecTypId);
+
 /**
  * QUERIES
  */
@@ -80,6 +83,7 @@ List<Account> lstAccs = [
                AND npsp__Deceased__c = false)
       FROM Account 
      WHERE npo02__LastCloseDate__c > :earliestGiftDate
+       AND RecordTypeId = :hhRecTypId
 ];
 
 /**
@@ -222,7 +226,6 @@ for (Account curAcc : mapAccounts.values()) {
     } else {
         csvString += emptyCell;
     }
-    csvString += bigOpp.Allocations__c == null ? emptyCell : bigOpp.Allocations__c + ',';
     csvString += bigOpp.CloseDate.format() + ',';
 
     // Smallest gift
