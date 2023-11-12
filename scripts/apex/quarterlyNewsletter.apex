@@ -70,10 +70,10 @@ List<String> csvContactHeaders = new List<String>{
 List<Account> lstAccs = [
     SELECT Id, Name, npo02__TotalOppAmount__c, npo02__LastCloseDate__c, npo02__Formal_Greeting__c, npo02__Informal_Greeting__c, 
            BillingStreet, BillingCity, BillingState, BillingPostalCode, 
-           (SELECT Id, Amount, StageName, CloseDate, Allocations__c
+           (SELECT Id, Amount, StageName, CloseDate, Allocations__c, CampaignId, Campaign.Name
               FROM Opportunities 
              WHERE Committed__c = true 
-             ORDER BY CloseDate ASC),
+             ORDER BY CloseDate DESC),
            (SELECT Id, FirstName, MiddleName, LastName, Salutation, Suffix, Email, Phone
               FROM Contacts
              WHERE TREX1__Age__c >= 18
@@ -82,59 +82,29 @@ List<Account> lstAccs = [
      WHERE npo02__LastCloseDate__c > :earliestGiftDate
 ];
 
-// All board members
-/*
-List<Contact> lstBoardContacts = [
-    SELECT Id, AccountId
-      FROM Contact
-     WHERE TREX1__Age__c >= 18
-       AND npsp__Deceased__c = false
-       AND Id IN (SELECT npe5__Contact__c 
-                    FROM npe5__Affiliation__c 
-                   WHERE npe5__Organization__r.Name LIKE '%Asphalt%' 
-                     AND npe5__Role__c LIKE '%Board%'
-                     AND npe5__Status__c = 'Current')
-];
-*/
-
-// All staff contacts that have given a gift
-/*
-List<Contact> lstStaffContacts = [
-    SELECT Id, AccountId
-      FROM Contact
-     WHERE Contact_Type__c IN ('Full-time Staff','Part-time Staff')
-       AND AccountId IN (SELECT AccountId FROM Opportunity WHERE Committed__c = true)
-];
-*/
-
-
 /**
  * FILTERING
  */
 Map<Id, Account> mapAccounts = new Map<Id, Account>();
-Map<Id, List<String>> mapInclusionReasons = new Map<Id, List<String>>();
 Map<Id, Opportunity> mapLargestOpp = new Map<Id, Opportunity>();
 Map<Id, Opportunity> mapSmallestOpp = new Map<Id, Opportunity>();
 Map<Id, Decimal> mapQualifyingFyGiftAmount = new Map<Id, Decimal>();
 Integer maxContacts = 0;
 
 for (Account acc : lstAccs) {
-    if (!mapInclusionReasons.containsKey(acc.Id)) {
-        mapInclusionReasons.put(acc.Id, new List<String>());
-    }
+    // Set largest number of contacts size to determine number of columns
     if (acc.Contacts.size() > maxContacts) {
         maxContacts = acc.Contacts.size();
     }
 
+    // Track totals for account
     Decimal giftTotal = 0.00;
     Decimal qualifyingFyGiftTotal = 0.00;
     Decimal largestOppAmount;
+    Date largestOppCloseDate;
     Decimal smallestOppAmount;
     Decimal largestQualifyingFyOppAmount;
     Decimal smallestQualifyingFyOppAmount;
-    // Map<String, Decimal> mapFyTotals = new Map<String, Decimal>();
-    // Set<String> setQualifyingFys = new Set<String>();
-    Boolean addToMap = false;
 
     for (Opportunity opp : acc.Opportunities) {
         giftTotal += opp.Amount;
@@ -152,114 +122,22 @@ for (Account acc : lstAccs) {
             smallestOppAmount = opp.Amount;
             mapSmallestOpp.put(acc.Id, opp);
         }
-        /*
-        String fy = opp.CloseDate.month() >= 7 
-            ? String.valueOf( opp.CloseDate.year() + 1 ).right(2)
-            : String.valueOf( opp.CloseDate.year() ).right(2);
-        if (!mapFyTotals.containsKey(fy)) {
-            mapFyTotals.put(fy, 0.00);
-        }
-        mapFyTotals.put(fy, mapFyTotals.get(fy) + opp.Amount);
-
-        if (mapFyTotals.get(fy) > 1000) {
-            setQualifyingFys.add('FY' + fy);
-        }
-        */
     }
 
     mapAccounts.put(acc.Id, acc);
     mapQualifyingFyGiftAmount.put(acc.Id, qualifyingFyGiftTotal);
-
-/*
-    if (!setQualifyingFys.isEmpty()) {
-        addToMap = true;
-        List<String> lstFys = new List<String>();
-        lstFys.addAll(setQualifyingFys);
-        List<String> lstReasons = mapInclusionReasons.get(acc.Id);
-        lstReasons.add('Gifts over $1k in ' + String.join(lstFys, ', '));
-        mapInclusionReasons.put(
-            acc.Id, 
-            lstReasons
-        );
-    }
-
-    if (giftTotal >= 5000) {
-        addToMap = true;
-        List<String> lstReasons = mapInclusionReasons.get(acc.Id);
-        lstReasons.add('Total gifts over $5k since FY19');
-        mapInclusionReasons.put(
-            acc.Id, 
-            lstReasons
-        );
-    }
-
-    if (addToMap) {
-        mapAccounts.put(acc.Id, acc);
-    }
-    */
 }
 
-// Filter out duplicate board member accounts by adding to account map
-/*
-Set<Id> setIdsToQuery = new Set<Id>();
-for (Contact bc : lstBoardContacts) {
-    setIdsToQuery.add(bc.AccountId);
-    if (!mapInclusionReasons.containsKey(bc.AccountId)) {
-        mapInclusionReasons.put(bc.AccountId, new List<String>());
-    }
-    List<String> lstReasons = mapInclusionReasons.get(bc.AccountId);
-    lstReasons.add('Board member');
-    mapInclusionReasons.put(
-        bc.AccountId, 
-        lstReasons
-    );
-}
-*/
-
-// Filter out duplicate staff member accounts by adding to account map
-/*
-for (Contact sc : lstStaffContacts) {
-    setIdsToQuery.add(sc.AccountId);
-    if (!mapInclusionReasons.containsKey(sc.AccountId)) {
-        mapInclusionReasons.put(sc.AccountId, new List<String>());
-    }
-    List<String> lstReasons = mapInclusionReasons.get(sc.AccountId);
-    lstReasons.add('Staff member');
-    mapInclusionReasons.put(
-        sc.AccountId, 
-        lstReasons
-    );
-}
-*/
-
-// Re-query for all adults in households of board members and staff members
-// that are not already in the map
-/*
-List<Account> lstFamilies = [
-    SELECT Id, Name, npo02__TotalOppAmount__c, npo02__LastCloseDate__c, npo02__Formal_Greeting__c, npo02__Informal_Greeting__c, 
-           BillingStreet, BillingCity, BillingState, BillingPostalCode, 
-           (SELECT Id, FirstName, MiddleName, LastName, Salutation, Suffix, Email
-              FROM Contacts
-             WHERE TREX1__Age__c >= 18)
-      FROM Account 
-     WHERE Id IN :setIdsToQuery
-];
-for (Account fam : lstFamilies) {
-    if (fam.Contacts.size() > maxContacts) {
-        maxContacts = fam.Contacts.size();
-    }
-    mapAccounts.put(fam.Id, fam);
-}
-*/
 
 /**
  * CONSTRUCT CSV
  */
 String csvString = '';
-// Headers
+// Account headers
 for (String col : csvColumnHeaders) {
     csvString += col + ',';
 }
+// Contact headers
 for (Integer i = 0; i < maxContacts; i++) {
     for (Integer n = 0; n < csvContactHeaders.size(); n++) {
         csvString += csvContactHeaders[n] + ' ' + String.valueOf(i + 1);
@@ -336,14 +214,28 @@ for (Account curAcc : mapAccounts.values()) {
 
     // Largest gift
     Opportunity bigOpp = mapLargestOpp.get(curAcc.Id);
-    csvString += '$' + String.valueOf(bigOpp.Amount) + ',' + bigOpp.Allocations__c + ',' + bigOpp.CloseDate.format() + ',';
+    csvString += '$' + String.valueOf(bigOpp.Amount) + ',';
+    if (bigOpp.Allocations__c != null) {
+        csvString += bigOpp.Allocations__c + ',';
+    } else if (bigOpp.CampaignId != null) {
+        csvString += bigOpp.Campaign.Name + ',';
+    } else {
+        csvString += emptyCell;
+    }
+    csvString += bigOpp.Allocations__c == null ? emptyCell : bigOpp.Allocations__c + ',';
+    csvString += bigOpp.CloseDate.format() + ',';
 
     // Smallest gift
     Opportunity littleOpp = mapSmallestOpp.get(curAcc.Id);
-    csvString += '$' + String.valueOf(littleOpp.Amount) + ',' + littleOpp.Allocations__c + ',' + littleOpp.CloseDate.format() + ',';
-
-    // csvString += '"' + String.join(mapInclusionReasons.get(curAcc.Id), '; ') + '",';
-
+    csvString += '$' + String.valueOf(littleOpp.Amount) + ',';
+    if (littleOpp.Allocations__c != null) {
+        csvString += littleOpp.Allocations__c + ',';
+    } else if (littleOpp.CampaignId != null) {
+        csvString += littleOpp.Campaign.Name + ',';
+    } else {
+        csvString += emptyCell;
+    }
+    csvString += littleOpp.CloseDate.format() + ',';
     /*
         'Contact Id',
         'Salutation'
