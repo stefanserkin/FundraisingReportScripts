@@ -3,9 +3,6 @@
 
  CRITERIA:
     Anyone who has given a gift in FYs FY22-24
-    AG Staff members who have donated
-    Board Members
-    ‘Friends & Family’ (this is not yet a made filter or list, but will be a separate request for a checkbox added to contacts and/or accounts)
  
  COLUMNS:
     For each adult in household:
@@ -19,15 +16,14 @@
     Total Cumulative Giving Amount (all-time)
     Total Cumulative Giving Amount (FY22-24)
     Largest gift amount, allocation, and date (all-time)
-    Largest gift amount, allocation, and date (FY22-24)
     Smallest gift amount, allocation, and date (all-time)
-    Smallest gift amount, allocation, and date (FY22-24)
 */
 
 String emailSubject = 'Asphalt Green Insider Newsletter recipients';
 List<String> lstEmailAddresses = new List<String>{ 'sserkin@asphaltgreen.org' };
 String senderDisplayName = 'The AG Data Factory';
 String emailBody = 'Attached, please find the requested data.';
+String csvFileName = 'Asphalt_Green_Insiders.csv';
 
 Date earliestGiftDate = Date.newInstance(2021, 7, 1);
 String emptyCell = ',';
@@ -43,6 +39,9 @@ List<String> csvColumnHeaders = new List<String>{
     'Zip Code',
     'Lifetime Giving Amount',
     'Total Giving Amount (FY22 - FY24)',
+    'Total FY24',
+    'Total FY23',
+    'Total FY22',
     'Largest Gift Amount',
     'Largest Gift Allocation',
     'Largest Gift Date',
@@ -93,6 +92,7 @@ Map<Id, Account> mapAccounts = new Map<Id, Account>();
 Map<Id, Opportunity> mapLargestOpp = new Map<Id, Opportunity>();
 Map<Id, Opportunity> mapSmallestOpp = new Map<Id, Opportunity>();
 Map<Id, Decimal> mapQualifyingFyGiftAmount = new Map<Id, Decimal>();
+Map<Id, Map<Integer, Decimal>> mapFyGiving = new Map<Id, Map<Integer, Decimal>>();
 Integer maxContacts = 0;
 
 for (Account acc : lstAccs) {
@@ -109,12 +109,23 @@ for (Account acc : lstAccs) {
     Decimal smallestOppAmount;
     Decimal largestQualifyingFyOppAmount;
     Decimal smallestQualifyingFyOppAmount;
+    Map<Integer, Decimal> mapFyTotals = new Map<Integer, Decimal>();
+    Decimal fy22 = 0.00;
+    Decimal fy23 = 0.00;
+    Decimal fy24 = 0.00;
 
     for (Opportunity opp : acc.Opportunities) {
         giftTotal += opp.Amount;
         // Check for fiscal year to add to qualifying fy total
         if (opp.CloseDate >= earliestGiftDate) {
             qualifyingFyGiftTotal += opp.Amount;
+            if (opp.CloseDate < Date.newInstance(2022,7,1)) {
+                fy22 += opp.Amount;
+            } else if (opp.CloseDate < Date.newInstance(2023,7,1)) {
+                fy23 += opp.Amount;
+            } else {
+                fy24 += opp.Amount;
+            }
         }
         // Check against largest gift so far
         if (largestOppAmount == null || opp.Amount > largestOppAmount) {
@@ -127,6 +138,11 @@ for (Account acc : lstAccs) {
             mapSmallestOpp.put(acc.Id, opp);
         }
     }
+
+    mapFyTotals.put(24, fy24);
+    mapFyTotals.put(23, fy23);
+    mapFyTotals.put(22, fy22);
+    mapFyGiving.put(acc.Id, mapFyTotals);
 
     mapAccounts.put(acc.Id, acc);
     mapQualifyingFyGiftAmount.put(acc.Id, qualifyingFyGiftTotal);
@@ -212,9 +228,15 @@ for (Account curAcc : mapAccounts.values()) {
         csvString += emptyCell;
     }
 
+    // Cumulative giving totals for all-time and qualifying fiscal years
     csvString += '$' + String.valueOf(curAcc.npo02__TotalOppAmount__c) + ',';
-
     csvString += '$' + String.valueOf(mapQualifyingFyGiftAmount.get(curAcc.Id)) + ',';
+
+    // Individual fiscal year totals
+    List<Decimal> lstFyTotals = mapFyGiving.get(curAcc.Id).values();
+    for (Decimal fyt : lstFyTotals) {
+        csvString += '$' + String.valueOf(fyt) + ',';
+    }
 
     // Largest gift
     Opportunity bigOpp = mapLargestOpp.get(curAcc.Id);
@@ -276,7 +298,7 @@ for (Account curAcc : mapAccounts.values()) {
  */
 // Create csv file attachment
 Messaging.EmailFileAttachment attachment = new Messaging.EmailFileAttachment();
-attachment.setFileName('Asphalt_Green_Insiders.csv');
+attachment.setFileName(csvFileName);
 attachment.setBody(Blob.valueOf(csvString));
 
 // Create email with attachment

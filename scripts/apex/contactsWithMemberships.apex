@@ -8,10 +8,10 @@
 Date minDate = Date.newInstance(2023, 3, 1);
 Date fakeBirthday = Date.newInstance(1945, 1, 1);
 
-// Adults in households with registrations or memberships
+// Adults in households with memberships since the minimum date
 List<Contact> lstContacts = [
     SELECT Id,
-           (SELECT TREX1__Status__c, Type_of_Membership__c, RecordType.DeveloperName, TREX1__Category_Name__c
+           (SELECT TREX1__Status__c, Type_of_Membership__c, RecordType.DeveloperName, TREX1__memb_Type__r.Name, TREX1__Category_Name__c
               FROM TREX1__Memberships__r
              WHERE Type_of_Membership__c != 'Program Participant'
                AND TREX1__Status__c IN ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold'))
@@ -19,7 +19,8 @@ List<Contact> lstContacts = [
      WHERE TREX1__Age__c >= 18
        AND AccountId IN (SELECT TREX1__Account__c 
                            FROM TREX1__Membership__c 
-                          WHERE TREX1__Status__c in ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold')
+                          WHERE Type_of_Membership__c != 'Program Participant'
+                            AND TREX1__Status__c in ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold')
                             AND TREX1__Start_Date__c >= :minDate)
 ];
 
@@ -40,7 +41,8 @@ for (Contact ct : lstContacts) {
             if (mem.RecordType.DeveloperName == 'Standard_Membership') {
                 lstMems.add(mem.Type_of_Membership__c + ' (' + mem.TREX1__Status__c + ')');
             } else {
-                lstPvts.add(mem.TREX1__Category_Name__c + ' (' + mem.TREX1__Status__c + ')');
+                // lstPvts.add(mem.TREX1__Category_Name__c + ' (' + mem.TREX1__Status__c + ')');
+                lstPvts.add(mem.TREX1__memb_Type__r.Name + ' (' + mem.TREX1__Status__c + ')');
             }
         }
         csvString += String.join(lstMems, '; ') + ',' + String.join(lstPvts, '; ');
