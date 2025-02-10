@@ -4,46 +4,46 @@
  * @date October, 2023
  **************************************************************************/
 
-// Rules
-Date minDate = Date.newInstance(2023, 3, 1);
-Date fakeBirthday = Date.newInstance(1945, 1, 1);
-
-// Adults in households with registrations or memberships
-List<Contact> lstContacts = [
+List<Account> lstAccounts = [
     SELECT Id,
-           (SELECT TREX1__reg_Course_Session__r.Name, TREX1__Start_Date__c
-              FROM TREX1__Registrations__r 
-             WHERE Qualifying_Enrollments__c > 0)
-      FROM Contact 
-     WHERE TREX1__Age__c >= 18
-       AND AccountId IN (SELECT TREX1__Account__c 
-                           FROM TREX1__Registration__c 
-                          WHERE TREX1__Start_Date__c >= :minDate
-                            AND Qualifying_Enrollments__c > 0)
+           (SELECT TREX1__reg_Program__r.Name, TREX1__reg_Course__r.Name, TREX1__Contact__r.FirstName, TREX1__Start_Date__c
+              FROM TREX1__Registrations__r
+             WHERE Qualifying_Enrollments__c > 0
+             ORDER BY TREX1__Start_Date__c DESC)
+      FROM Account
+     WHERE Id IN (SELECT AccountId FROM Contact WHERE Include_in_Wealth_Screening__c = true)
 ];
 
 // Headers
 String csvString = 'Id,Registrations\n';
 
 Integer rowCount = 0;
-for (Contact ct : lstContacts) {
+for (Account acc : lstAccounts) {
 
-    // Contact and account info
-    csvString += ct.Id + ',';
+    // Account id
+    csvString += acc.Id + ',';
 
     // Registrations
-    if (!ct.TREX1__Registrations__r.isEmpty()) {
+    if (!acc.TREX1__Registrations__r.isEmpty()) {
         List<String> lstRegs = new List<String>();
-        for (TREX1__Registration__c reg : ct.TREX1__Registrations__r) {
-            lstRegs.add(reg.TREX1__reg_Course_Session__r.Name + ' - ' + reg.TREX1__Start_Date__c.format());
+        Set<String> setRegs = new Set<String>();
+        for (TREX1__Registration__c reg : acc.TREX1__Registrations__r) {
+            /*
+            String regString = reg.TREX1__reg_Course__r.Name + 
+                ' (' + reg.TREX1__Contact__r.FirstName + ' - ' + reg.TREX1__Start_Date__c.format() + ')';
+                */
+            String regString = reg.TREX1__reg_Program__r.Name + ' (' + reg.TREX1__Contact__r.FirstName + ')';
+            //lstRegs.add(regString);
+            setRegs.add(regString);
         }
+        lstRegs.addAll(setRegs);
         csvString += String.join(lstRegs, '; ');
     } else {
         csvString += '';
     }
 
     rowCount++;
-    if (rowCount < lstContacts.size()) {
+    if (rowCount < lstAccounts.size()) {
         csvString += '\n';
     }
 }

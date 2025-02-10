@@ -11,15 +11,13 @@
  **************************************************************************/
 
 // Rules
-Date minDate = Date.newInstance(2023, 12, 7);
+Date minDate = Date.newInstance(2023, 3, 1);
 Date fakeBirthday = Date.newInstance(1945, 1, 1);
 
 List<Contact> lstRegCts = [
     SELECT Id 
       FROM Contact
-     WHERE Last_Wealth_Screening__c = null
-       AND Account.BillingStreet != null
-       AND AccountId IN (SELECT TREX1__Account__c 
+     WHERE AccountId IN (SELECT TREX1__Account__c 
                            FROM TREX1__Registration__c 
                           WHERE TREX1__Start_Date__c >= :minDate
                             AND Qualifying_Enrollments__c > 0)
@@ -28,14 +26,11 @@ List<Contact> lstRegCts = [
 List<Contact> lstMemCts = [
     SELECT Id 
       FROM Contact
-     WHERE Last_Wealth_Screening__c = null
-       AND Account.BillingStreet != null
-       AND AccountId IN (SELECT TREX1__Account__c 
+     WHERE AccountId IN (SELECT TREX1__Account__c 
                            FROM TREX1__Membership__c 
                           WHERE TREX1__Status__c in ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold')
                             AND TREX1__Start_Date__c >= :minDate)
 ];
-
 
 // Adults in households with registrations or memberships
 List<Contact> lstContacts = [
@@ -58,7 +53,6 @@ List<Contact> lstContacts = [
       FROM Contact 
      WHERE TREX1__Age__c >= 18
        AND (Id IN :lstRegCts OR Id IN :lstMemCts)
-     ORDER BY AccountId
 ];
 
 // Headers
@@ -121,7 +115,7 @@ for (Contact ct : lstContacts) {
 
 // Create csv file attachment
 Messaging.EmailFileAttachment attachment = new Messaging.EmailFileAttachment();
-attachment.setFileName('WealthScreeningTemplate.csv');
+attachment.setFileName('ParticipantGroupUpdates.csv');
 attachment.setBody(Blob.valueOf(csvString));
 
 // Create email with attachment

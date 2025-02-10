@@ -25,7 +25,7 @@ String senderDisplayName = 'The AG Data Factory';
 String emailBody = 'Attached, please find the requested data.';
 String csvFileName = 'Asphalt_Green_Insiders.csv';
 
-Date earliestGiftDate = Date.newInstance(2021, 7, 1);
+Date earliestGiftDate = Date.newInstance(2021, 1, 1);
 String emptyCell = ',';
 
 List<String> csvColumnHeaders = new List<String>{
@@ -38,10 +38,10 @@ List<String> csvColumnHeaders = new List<String>{
     'State',
     'Zip Code',
     'Lifetime Giving Amount',
-    'Total Giving Amount (FY22 - FY24)',
-    'Total FY24',
-    'Total FY23',
-    'Total FY22',
+    'Total Giving Amount (CY21 - CY23)',
+    'Total CY23',
+    'Total CY22',
+    'Total CY21',
     'Largest Gift Amount',
     'Largest Gift Allocation',
     'Largest Gift Date',
@@ -62,13 +62,12 @@ List<String> csvContactHeaders = new List<String>{
 };
 
 Id hhRecTypId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName().get('HH_Account').getRecordTypeId();
-System.debug('::::::: hhRecTypId --> ' + hhRecTypId);
 
 /**
  * QUERIES
  */
 
-// All accounts that have given a gift since the beginning of fy22 
+// All accounts that have given a gift since the beginning of cy21 
 List<Account> lstAccs = [
     SELECT Id, Name, npo02__TotalOppAmount__c, npo02__LastCloseDate__c, npo02__Formal_Greeting__c, npo02__Informal_Greeting__c, 
            BillingStreet, BillingCity, BillingState, BillingPostalCode, 
@@ -82,6 +81,7 @@ List<Account> lstAccs = [
                AND npsp__Deceased__c = false)
       FROM Account 
      WHERE npo02__LastCloseDate__c > :earliestGiftDate
+       AND npo02__TotalOppAmount__c > 1000
        AND RecordTypeId = :hhRecTypId
 ];
 
@@ -110,21 +110,23 @@ for (Account acc : lstAccs) {
     Decimal largestQualifyingFyOppAmount;
     Decimal smallestQualifyingFyOppAmount;
     Map<Integer, Decimal> mapFyTotals = new Map<Integer, Decimal>();
-    Decimal fy22 = 0.00;
-    Decimal fy23 = 0.00;
-    Decimal fy24 = 0.00;
+    Decimal cy23 = 0.00;
+    Decimal cy22 = 0.00;
+    Decimal cy21 = 0.00;
 
     for (Opportunity opp : acc.Opportunities) {
         giftTotal += opp.Amount;
         // Check for fiscal year to add to qualifying fy total
         if (opp.CloseDate >= earliestGiftDate) {
             qualifyingFyGiftTotal += opp.Amount;
-            if (opp.CloseDate < Date.newInstance(2022,7,1)) {
-                fy22 += opp.Amount;
-            } else if (opp.CloseDate < Date.newInstance(2023,7,1)) {
-                fy23 += opp.Amount;
+            if (opp.CloseDate < Date.newInstance(2021,1,1)) {
+                // do nothing here
+            } else if (opp.CloseDate < Date.newInstance(2022,1,1)) {
+                cy21 += opp.Amount;
+            } else if (opp.CloseDate < Date.newInstance(2023,1,1)) {
+                cy22 += opp.Amount;
             } else {
-                fy24 += opp.Amount;
+                cy23 += opp.Amount;
             }
         }
         // Check against largest gift so far
@@ -139,13 +141,17 @@ for (Account acc : lstAccs) {
         }
     }
 
-    mapFyTotals.put(24, fy24);
-    mapFyTotals.put(23, fy23);
-    mapFyTotals.put(22, fy22);
-    mapFyGiving.put(acc.Id, mapFyTotals);
+    // Verify qualification for list
+    if (cy21 >= 1000 || cy22 >= 1000 || cy23 > 1000) {
+        mapFyTotals.put(23, cy23);
+        mapFyTotals.put(22, cy22);
+        mapFyTotals.put(21, cy21);
 
-    mapAccounts.put(acc.Id, acc);
-    mapQualifyingFyGiftAmount.put(acc.Id, qualifyingFyGiftTotal);
+        mapFyGiving.put(acc.Id, mapFyTotals);
+
+        mapAccounts.put(acc.Id, acc);
+        mapQualifyingFyGiftAmount.put(acc.Id, qualifyingFyGiftTotal);
+    }
 }
 
 
@@ -233,10 +239,10 @@ for (Account curAcc : mapAccounts.values()) {
     csvString += '$' + String.valueOf(mapQualifyingFyGiftAmount.get(curAcc.Id)) + ',';
 
     // Individual fiscal year totals
-    List<Decimal> lstFyTotals = mapFyGiving.get(curAcc.Id).values();
-    for (Decimal fyt : lstFyTotals) {
-        csvString += '$' + String.valueOf(fyt) + ',';
-    }
+    Map<Integer, Decimal> mapCyTotals = mapFyGiving.get(curAcc.Id);
+    csvString += '$' + String.valueOf( mapCyTotals.get(23) ) + ',';
+    csvString += '$' + String.valueOf( mapCyTotals.get(22) ) + ',';
+    csvString += '$' + String.valueOf( mapCyTotals.get(21) ) + ',';
 
     // Largest gift
     Opportunity bigOpp = mapLargestOpp.get(curAcc.Id);

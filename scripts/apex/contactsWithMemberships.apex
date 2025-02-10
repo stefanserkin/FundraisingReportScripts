@@ -4,54 +4,54 @@
  * @date October, 2023
  **************************************************************************/
 
-// Rules
-Date minDate = Date.newInstance(2023, 3, 1);
-Date fakeBirthday = Date.newInstance(1945, 1, 1);
-
-// Adults in households with memberships since the minimum date
-List<Contact> lstContacts = [
+List<Account> lstAccounts = [
     SELECT Id,
-           (SELECT TREX1__Status__c, Type_of_Membership__c, RecordType.DeveloperName, TREX1__memb_Type__r.Name, TREX1__Category_Name__c
+           (SELECT TREX1__Contact__r.FirstName, TREX1__Start_Date__c, TREX1__Status__c, Type_of_Membership__c, RecordType.DeveloperName, TREX1__memb_Type__r.Name, TREX1__Category_Name__c
               FROM TREX1__Memberships__r
-             WHERE Type_of_Membership__c != 'Program Participant'
-               AND TREX1__Status__c IN ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold'))
-      FROM Contact 
-     WHERE TREX1__Age__c >= 18
-       AND AccountId IN (SELECT TREX1__Account__c 
-                           FROM TREX1__Membership__c 
-                          WHERE Type_of_Membership__c != 'Program Participant'
-                            AND TREX1__Status__c in ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold')
-                            AND TREX1__Start_Date__c >= :minDate)
+             WHERE Type_of_Membership__c NOT IN ('Program Participant', 'Staff')
+               AND TREX1__Category_Name__c NOT IN ('Complimentary Memberships','Complimentary Sessions')
+               AND TREX1__Status__c IN ('Active', 'Complete', 'Pending Active', 'Pending Cancel', 'Pending Transfer', 'On Hold')
+             ORDER BY TREX1__Start_Date__c DESC, TREX1__Contact__r.FirstName)
+      FROM Account 
+     WHERE Id IN (SELECT AccountId FROM Contact WHERE Include_in_Wealth_Screening__c = true)
 ];
 
 // Headers
 String csvString = 'Id,Memberships,Private Lessons\n';
 
 Integer rowCount = 0;
-for (Contact ct : lstContacts) {
+for (Account acc : lstAccounts) {
 
-    // Contact and account info
-    csvString += ct.Id + ',';
+    // Account id
+    csvString += acc.Id + ',';
 
     // Memberships
-    if (!ct.TREX1__Memberships__r.isEmpty()) {
+    if (!acc.TREX1__Memberships__r.isEmpty()) {
         List<String> lstMems = new List<String>();
         List<String> lstPvts = new List<String>();
-        for (TREX1__Membership__c mem : ct.TREX1__Memberships__r) {
-            if (mem.RecordType.DeveloperName == 'Standard_Membership') {
-                lstMems.add(mem.Type_of_Membership__c + ' (' + mem.TREX1__Status__c + ')');
+        for (TREX1__Membership__c mem : acc.TREX1__Memberships__r) {
+            String memString = '';
+            if (mem.Type_of_Membership__c != null) {
+                memString += mem.Type_of_Membership__c;
             } else {
-                // lstPvts.add(mem.TREX1__Category_Name__c + ' (' + mem.TREX1__Status__c + ')');
-                lstPvts.add(mem.TREX1__memb_Type__r.Name + ' (' + mem.TREX1__Status__c + ')');
+                memString += mem.TREX1__memb_Type__r.Name.replaceAll('"','""');
+            }
+            // memString += ' (Contact: ' + mem.TREX1__Contact__r.FirstName + ' | Status: ' + mem.TREX1__Status__c + ' | Start Date: ' + mem.TREX1__Start_Date__c.format() + ')';
+            memString += ' (' + mem.TREX1__Contact__r.FirstName + ' | ' + mem.TREX1__Status__c + ' | ' + mem.TREX1__Start_Date__c.format() + ')';
+
+            if (mem.RecordType.DeveloperName == 'Standard_Membership') {
+                lstMems.add(memString);
+            } else {
+                lstPvts.add(memString);
             }
         }
-        csvString += String.join(lstMems, '; ') + ',' + String.join(lstPvts, '; ');
+        csvString += '"' + String.join(lstMems, '; ') + '"' + ',' + '"' + String.join(lstPvts, '; ') + '"';
     } else {
         csvString += ',';
     }
 
     rowCount++;
-    if (rowCount < lstContacts.size()) {
+    if (rowCount < lstAccounts.size()) {
         csvString += '\n';
     }
 }

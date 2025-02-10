@@ -5,15 +5,6 @@
 // You can also execute the entire file by running the command:
 //     SFDX: Execute Anonymous Apex with Editor Contents
 
-String str = 'Id, AccountId, AG_ID__c, Salutation, FirstName, MiddleName, LastName, Suffix, ' +
-           'MailingStreet, MailingCity, MailingState, MailingCountry, MailingPostalCode,  ' +
-           'Account.npo02__TotalOppAmount__c, Account.npo02__NumberOfClosedOpps__c, Account.npo02__LastOppAmount__c,  ' +
-           'Account.npo02__LastCloseDate__c, Account.npo02__Best_Gift_Year_Total__c, Account.npo02__Best_Gift_Year__c,  ' +
-           'Birthdate, TREX1__Age__c, MobilePhone, HomePhone, npe01__WorkPhone__c, OtherPhone';
-
-String newstr = str.replace(' ', '');
-
-List<String> lstStrings = newstr.split(',');
-
-String finalString = String.join(lstStrings, ' + \',\' + ct.');
-System.debug(finalString);
+Contact[] lstContacts = [select Id, MailingStreet, Include_in_Wealth_Screening__c from Contact where Include_in_Wealth_Screening__c = true and MailingStreet = ''];
+for (Contact ct : lstContacts) ct.Include_in_Wealth_Screening__c = false;
+update lstContacts;
